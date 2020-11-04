@@ -70,6 +70,7 @@ async fn read_config() -> Result<BTreeSet<String>, ImlAgentError> {
     Ok(fs::read_to_string(&*POSTMAN_CONF)
         .await?
         .lines()
+        .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .collect())
 }
