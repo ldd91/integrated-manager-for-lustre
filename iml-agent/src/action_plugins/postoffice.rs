@@ -57,11 +57,15 @@ async fn lock_file() -> Result<fs::File, ImlAgentError> {
     }
 }
 
-async fn unlock_file(rename: bool) -> Result<(), ImlAgentError> {
-    if rename {
-        fs::rename(&*POSTMAN_CONF_NEW, &*POSTMAN_CONF).await?;
-    } else {
-        fs::remove_file(&*POSTMAN_CONF_NEW).await?;
+pub enum UnlockOp {
+    Keep,
+    Drop,
+}
+
+pub async fn unlock_file(op: UnlockOp) -> Result<(), ImlAgentError> {
+    match op {
+        UnlockOp::Keep => fs::rename(&*POSTMAN_CONF_NEW, &*POSTMAN_CONF).await?,
+        UnlockOp::Drop => fs::remove_file(&*POSTMAN_CONF_NEW).await?,
     }
     Ok(())
 }
@@ -75,32 +79,36 @@ async fn read_config() -> Result<BTreeSet<String>, ImlAgentError> {
         .collect())
 }
 
+enum RouteOp {
+    Insert,
+    Remove,
+}
+
 async fn locked_route(
     file: fs::File,
     mailbox: String,
-    insert: bool,
-) -> Result<bool, ImlAgentError> {
+    action: RouteOp,
+) -> Result<UnlockOp, ImlAgentError> {
     let mut conf = read_config().await?;
 
-    let rc = if insert {
-        conf.insert(mailbox)
-    } else {
-        conf.remove(&mailbox)
+    let rc = match action {
+        RouteOp::Insert => conf.insert(mailbox),
+        RouteOp::Remove => conf.remove(&mailbox),
     };
     if rc {
         write_config(file, conf).await?;
-        Ok(true)
+        Ok(UnlockOp::Keep)
     } else {
-        Ok(false)
+        Ok(UnlockOp::Drop)
     }
 }
 
 pub async fn route_add(mailbox: String) -> Result<(), ImlAgentError> {
     let file = lock_file().await?;
 
-    let (rename, rc) = match locked_route(file, mailbox, true).await {
+    let (rename, rc) = match locked_route(file, mailbox, RouteOp::Insert).await {
         Ok(b) => (b, Ok(())),
-        Err(e) => (false, Err(e)),
+        Err(e) => (UnlockOp::Drop, Err(e)),
     };
 
     unlock_file(rename).await?;
@@ -110,9 +118,9 @@ pub async fn route_add(mailbox: String) -> Result<(), ImlAgentError> {
 pub async fn route_remove(mailbox: String) -> Result<(), ImlAgentError> {
     let file = lock_file().await?;
 
-    let (rename, rc) = match locked_route(file, mailbox, false).await {
+    let (rename, rc) = match locked_route(file, mailbox, RouteOp::Remove).await {
         Ok(b) => (b, Ok(())),
-        Err(e) => (false, Err(e)),
+        Err(e) => (UnlockOp::Drop, Err(e)),
     };
 
     unlock_file(rename).await?;

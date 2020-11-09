@@ -8,6 +8,7 @@ use futures::{
     FutureExt, TryFutureExt,
 };
 use iml_agent::{
+    action_plugins::postoffice::{UnlockOp, unlock_file},
     agent_error::Result,
     daemon_plugins, env,
     http_comms::{agent_client::AgentClient, crypto_client, session},
@@ -27,6 +28,9 @@ async fn main() -> Result<()> {
 
     let identity = crypto_client::get_id(&PEM)?;
     let client = crypto_client::create_client(identity)?;
+
+    // ensure lock file is removed on restart
+    let _ = unlock_file(UnlockOp::Drop).await;
 
     let agent_client =
         AgentClient::new(start_time.clone(), message_endpoint.clone(), client.clone());
