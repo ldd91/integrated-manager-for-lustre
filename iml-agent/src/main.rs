@@ -8,7 +8,7 @@ use futures::{
     FutureExt, TryFutureExt,
 };
 use iml_agent::{
-    action_plugins::postoffice::{UnlockOp, unlock_file},
+    action_plugins::postoffice::{unlock_file, UnlockOp},
     agent_error::Result,
     daemon_plugins, env,
     http_comms::{agent_client::AgentClient, crypto_client, session},
